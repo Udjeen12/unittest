@@ -1,46 +1,90 @@
-class TaskManager: #Класс для управления списком задач
+class TaskManager:  # Класс для управления списком задач
 
-    def __init__(self):
+    def __init__(self, logger=None, notifier=None, storage=None):
         self.tasks = {}  # Храним задачи в виде {id: {"title": str, "completed": bool}}
+        self.logger = logger
+        self.notifier = notifier
+        self.storage = storage
 
-    def add_task(self, task_id, title):   #Добавление новой задачи
+    def add_task(self, task_id, title):  # Добавление новой задачи
         if task_id in self.tasks:
             raise ValueError("Задача с таким ID уже существует")
         if not isinstance(title, str) or not title.strip():
             raise ValueError("Название задачи должно быть непустой строкой")
         self.tasks[task_id] = {"title": title, "completed": False}
+        if self.logger:
+            self.logger.log(f"Добавлена задача: {title}")
+        if self.storage:
+            self.storage.save_task(task_id, self.tasks[task_id])
 
-    def remove_task(self, task_id):     #Удаляет задачу
+    def remove_task(self, task_id):  # Удаляет задачу
         if task_id not in self.tasks:
             raise KeyError("Задача с таким ID не найдена")
         del self.tasks[task_id]
+        if self.logger:
+            self.logger.log(f"Удалена задача с ID: {task_id}")
 
-    def complete_task(self, task_id):   #Отмечает задачу как выполненную
+    def complete_task(self, task_id):  # Отмечает задачу как выполненную
         if task_id not in self.tasks:
             raise KeyError("Задача с таким ID не найдена")
         self.tasks[task_id]["completed"] = True
+        if self.logger:
+            self.logger.log(f"Задача {task_id} завершена")
+        if self.notifier:
+            self.notifier.notify(f"Задача {task_id} выполнена!")
 
-    def get_task(self, task_id):       #Возвращает задачу по id
+    def get_task(self, task_id):  # Возвращает задачу по id
         if task_id not in self.tasks:
             raise KeyError("Задача с таким ID не найдена")
         return self.tasks[task_id]
 
-    def get_all_tasks(self):          #Возвращает список всех задач
+    def get_all_tasks(self):  # Возвращает список всех задач
         return self.tasks
 
-    def search_tasks(self, keyword):     #Ищет задачу по ключевому слову
+    def search_tasks(self, keyword):  # Ищет задачу по ключевому слову
         if not isinstance(keyword, str):
             raise ValueError("Ключевое слово должно быть строкой")
-        return {task_id: task for task_id, task in self.tasks.items() if keyword.lower() in task["title"].lower()}
+        return {
+            task_id: task
+            for task_id, task in self.tasks.items()
+            if keyword.lower() in task["title"].lower()
+        }
+
 
 
 
 import unittest
-
+from unittest.mock import Mock
 class TestTaskManager(unittest.TestCase):
-    def setUp(self):         #Создание TaskManager перед каждым тестом
-        self.manager = TaskManager()
+    def setUp(self):
+        self.mock_logger = Mock()
+        self.mock_notifier = Mock()
+        self.mock_storage = Mock()
+        self.manager = TaskManager(
+            logger=self.mock_logger,
+            notifier=self.mock_notifier,
+            storage=self.mock_storage
+        )
 
+    def test_logger_called_on_add_task(self):
+        self.manager.add_task(1, "Задача с логом")
+        self.mock_logger.log.assert_called_once_with("Добавлена задача: Задача с логом")
+
+    def test_notifier_called_on_complete_task(self):
+        self.manager.add_task(1, "Задача с уведомлением")
+        self.manager.complete_task(1)
+        self.mock_notifier.notify.assert_called_once_with("Задача 1 выполнена!")
+
+    def test_storage_called_on_add_task(self):
+        self.manager.add_task(1, "Задача для сохранения")
+        self.mock_storage.save_task.assert_called_once_with(
+            1, {"title": "Задача для сохранения", "completed": False}
+        )
+
+    def test_logger_called_on_remove_task(self):
+        self.manager.add_task(1, "Удаляемая")
+        self.manager.remove_task(1)
+        self.mock_logger.log.assert_called_with("Удалена задача с ID: 1")
     def test_add_task(self):  #Тест на добавление задачи
         self.manager.add_task(1, "Сделать домашку")
         self.assertEqual(self.manager.get_task(1), {"title": "Сделать домашку", "completed": False})
